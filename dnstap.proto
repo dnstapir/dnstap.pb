@@ -71,6 +71,8 @@ enum SocketProtocol {
 // applied to the processing of a DNS message.
 message Policy {
 
+    // This is highly RPZ-centric and should probably be generalized TODO
+
     // Match: what aspect of the message or message exchange
     // triggered the application of the Policy.
     enum Match {
@@ -111,6 +113,18 @@ message Policy {
     // The matched value. Format depends on the matched feature .
     optional bytes value = 5;
 }
+
+// Internal server state. Implemented as key-value as it is highly dependent 
+// on server implementation
+message ServerState {
+
+    optional bytes        key = 1;
+    optional bytes        value = 2;
+
+}
+    
+
+
 
 // Message: a wire-format (RFC 1035 section 4) DNS message and associated
 // metadata. Applications generating "Message" payloads should follow
@@ -225,10 +239,29 @@ message Message {
         // from an authoritative name server, from the perspective of the
         // authoritative name server.
         UPDATE_RESPONSE = 14;
-    }
+
+        // TYPE_UNSPECIFIED is for sending a message where the intent of the 
+        // message is not known, for instance a DNS packet arriving over an 
+        // encrypted transport with no information on Type
+        TYPE_UNSPECIFIED = 15;
+
+        // 
+        // CLIENT_SESSION
+        // RESOLVER_SESSION
+        // AUTH_SESSION
+        // FORWARDER_SESSION
+        // STUB_SESSION
+        // TOOL_SESSION
+        // UPDATE_SESSION
+
+    }        
 
     // One of the Type values described above.
-    required Type               type = 1;
+    // Changing this from required to optional
+    // is a breaking change, so an alternative 
+    // cludge is to have a placeholder Type
+    // optional Type               type = 1;
+    required Type                type = 1;
 
     // One of the SocketFamily values described above.
     optional SocketFamily       socket_family = 2;
@@ -284,7 +317,22 @@ message Message {
     optional bytes              response_message = 14;
 
     // Operator policy applied to the processing of this message, if any.
-    optional Policy             policy = 15;
+    // A query can hit multiple policies
+    repeated Policy             policy = 15;
+
+    // Identifier to be able to connect multiple messages relating to the 
+    // same request
+    optional uint32             session_key = 16;
+
+    // Pointer to reference chained messages, eg if a client query results
+    // in a recursive query, or a recursive query results in multiple 
+    // upstream queries
+    optional uint32             key_reference = 17;
+
+    // Server state information such as if the query was served from cache
+    // or resulted in a recursive query, encryption data, etc
+    repeated ServerState        server_state = 18;
+    
 }
 
 // All fields except for 'type' in the Message schema are optional.
